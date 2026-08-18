@@ -255,6 +255,19 @@ img{max-width:100%;height:auto}
 @media (max-width:899px){
   .pane-text{margin-bottom:34px}
 }
+/* the intro sits in a column beside the tree, so it is set smaller and tighter
+   than body prose - a narrow column of 17px serif at 1.6 reads as a wall */
+@media (min-width:900px){
+  .pane-text .prose{font-size:15px;line-height:1.54}
+  .pane-text .prose p{margin:0 0 11px}
+  .pane-text .prose ul,.pane-text .prose ol{margin:0 0 12px;padding-left:19px}
+  .pane-text .prose li{margin-bottom:5px}
+  .pane-text .prose h2{font-size:1.12rem;margin:20px 0 6px}
+  .pane-text .prose h3{font-size:1rem;margin:16px 0 5px}
+  .pane-text .prose blockquote{margin:0 0 12px;padding:9px 14px;font-size:14.5px}
+}
+.lede.tight{margin:0 0 14px;font-size:.94rem}
+.pane-tree .kind{margin-bottom:10px}
 
 /* ---- parish maps (hand-drawn SVG, ported from tavira_parish_map.html) ---- */
 figure.mapfig{margin:0 0 26px}
@@ -493,13 +506,20 @@ function shell(active, body){
 
 // ---- tree
 var LSK = 'viegas.tree.v1';
-var state = { collapsed:{}, siblings:false, regQ:'', regOurs:false, splitW:380, textHidden:false };
-try { var s = JSON.parse(localStorage.getItem(LSK) || '{}'); if (s.collapsed) state.collapsed = s.collapsed;
-      if (typeof s.siblings === 'boolean') state.siblings = s.siblings;
-      if (typeof s.splitW === 'number') state.splitW = s.splitW;
-      if (typeof s.textHidden === 'boolean') state.textHidden = s.textHidden; } catch(e){}
+var state = { collapsed:{}, siblings:false, regQ:'', regOurs:false, splitW:620, textHidden:false };
+// layoutV lets the default column width change without discarding which nodes
+// somebody had expanded. Anyone carrying a width from before v2 gets the new default.
+var LAYOUT_V = 2;
+try {
+  var s = JSON.parse(localStorage.getItem(LSK) || '{}');
+  if (s.collapsed) state.collapsed = s.collapsed;
+  if (typeof s.siblings === 'boolean') state.siblings = s.siblings;
+  if (typeof s.textHidden === 'boolean') state.textHidden = s.textHidden;
+  if (typeof s.splitW === 'number' && s.layoutV === LAYOUT_V) state.splitW = s.splitW;
+} catch(e){}
+state.layoutV = LAYOUT_V;
 function saveState(){ try { localStorage.setItem(LSK, JSON.stringify(state)); } catch(e){} }
-var SPLIT_MIN = 260, SPLIT_MAX_FRAC = 0.6;
+var SPLIT_MIN = 300, SPLIT_MAX_FRAC = 0.72;
 function clampSplit(px, container){
   var max = Math.max(SPLIT_MIN, Math.round((container || 1100) * SPLIT_MAX_FRAC));
   return Math.min(max, Math.max(SPLIT_MIN, Math.round(px)));
@@ -571,9 +591,8 @@ function viewHome(){
     h('span', { 'class':'grip' }, '') + toggle);
 
   var treePane = h('div', { 'class':'pane-tree' },
-    h('span', { 'class':'kind' }, 'The direct line') +
-    h('h2', null, 'From ' + esc(root.name.split(' ')[0]) + ' back to the serra') +
-    h('p', { 'class':'lede' }, 'Each person\u2019s parents are nested beneath them. <b>Solid blue</b> means we hold a record of that person\u2019s own. <b>Dashed amber</b> means their name comes to us from a record about somebody else \u2014 the name itself is firm, and it is the key we search the next record with. Bold facts are the ones a primary source states outright; faded facts are inferred. ' + nDoc + ' of ' + people.length + ' people have a document of their own.') +
+    h('span', { 'class':'kind' }, 'The direct line \u00b7 ' + nDoc + ' of ' + people.length + ' with a record of their own') +
+    h('p', { 'class':'lede tight' }, 'Parents nest beneath each person. Bold facts come from a primary source; faded ones are inferred.') +
     h('div', { 'class':'legend' },
       h('span', null, '<i class="swatch sw-doc"></i> Has records of their own') +
       h('span', null, '<i class="swatch sw-open"></i> Named in another record \u2014 the key to the next one')) +
@@ -589,7 +608,7 @@ function viewHome(){
       h('p', { 'class':'eyebrow' }, esc(site.subtitle||'')) +
       h('h1', null, esc(site.title))) +
     h('div', { 'class':'split' + (state.textHidden ? ' text-hidden' : ''), id:'split',
-        style:'--split:' + state.splitW + 'px;margin-top:30px' },
+        style:'--split:' + state.splitW + 'px;margin-top:26px' },
       textPane + splitter + treePane));
 }
 
