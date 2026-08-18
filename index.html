@@ -37,6 +37,7 @@
 body{background:var(--paper);color:var(--ink);font-family:var(--serif);
   font-size:17px;line-height:1.6;margin:0;padding:0 20px 96px}
 .wrap{max-width:980px;margin:0 auto}
+.wrap.wide{max-width:1480px}
 a{color:var(--azulejo)}
 h1{font-size:clamp(1.9rem,5vw,2.7rem);line-height:1.12;margin:0 0 16px;font-weight:600;
   letter-spacing:-.015em;text-wrap:balance}
@@ -218,6 +219,42 @@ a:focus-visible,button:focus-visible,summary:focus-visible{
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 img{max-width:100%;height:auto}
 .sibgroup>ul{border-left-style:dotted!important}
+
+/* ---- home: text | tree split with a draggable divider ---- */
+.split{display:block}
+.pane-tree{min-width:0}
+.pane-text{min-width:0}
+.splitter{display:none}
+@media (min-width:900px){
+  .split{display:grid;grid-template-columns:var(--split,360px) 15px minmax(0,1fr);
+    align-items:start;column-gap:0}
+  .split.text-hidden{grid-template-columns:0 15px minmax(0,1fr)}
+  .split.text-hidden .pane-text{display:none}
+  .pane-text{position:sticky;top:14px;max-height:calc(100vh - 34px);
+    overflow-y:auto;overscroll-behavior:contain;padding-right:26px}
+  .pane-text::-webkit-scrollbar{width:9px}
+  .pane-text::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+  .splitter{display:block;position:sticky;top:14px;height:calc(100vh - 34px);
+    cursor:col-resize;background:transparent;border:0;padding:0;width:15px;
+    justify-self:center;touch-action:none}
+  .splitter::before{content:"";position:absolute;left:7px;top:0;bottom:0;width:1px;
+    background:var(--rule)}
+  .splitter:hover::before,.splitter[data-dragging="true"]::before{background:var(--azulejo-soft);width:2px;left:6.5px}
+  .splitter .grip{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:15px;height:38px;border-radius:8px;background:var(--panel);
+    border:1px solid var(--rule);display:flex;align-items:center;justify-content:center}
+  .splitter:hover .grip{border-color:var(--azulejo-soft)}
+  .splitter .grip::after{content:"";width:2px;height:16px;border-radius:2px;background:var(--muted)}
+  .splitter:focus-visible{outline:2px solid var(--azulejo-soft);outline-offset:1px;border-radius:4px}
+  .paneToggle{position:absolute;top:calc(50% + 34px);left:50%;transform:translateX(-50%);
+    width:24px;height:24px;border-radius:50%;background:var(--panel);border:1px solid var(--rule);
+    color:var(--muted);font-family:var(--sans);font-size:12px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0}
+  .paneToggle:hover{border-color:var(--azulejo-soft);color:var(--ink)}
+}
+@media (max-width:899px){
+  .pane-text{margin-bottom:34px}
+}
 
 /* ---- parish maps (hand-drawn SVG, ported from tavira_parish_map.html) ---- */
 figure.mapfig{margin:0 0 26px}
@@ -456,10 +493,17 @@ function shell(active, body){
 
 // ---- tree
 var LSK = 'viegas.tree.v1';
-var state = { collapsed:{}, siblings:false, regQ:'', regOurs:false };
+var state = { collapsed:{}, siblings:false, regQ:'', regOurs:false, splitW:380, textHidden:false };
 try { var s = JSON.parse(localStorage.getItem(LSK) || '{}'); if (s.collapsed) state.collapsed = s.collapsed;
-      if (typeof s.siblings === 'boolean') state.siblings = s.siblings; } catch(e){}
+      if (typeof s.siblings === 'boolean') state.siblings = s.siblings;
+      if (typeof s.splitW === 'number') state.splitW = s.splitW;
+      if (typeof s.textHidden === 'boolean') state.textHidden = s.textHidden; } catch(e){}
 function saveState(){ try { localStorage.setItem(LSK, JSON.stringify(state)); } catch(e){} }
+var SPLIT_MIN = 260, SPLIT_MAX_FRAC = 0.6;
+function clampSplit(px, container){
+  var max = Math.max(SPLIT_MIN, Math.round((container || 1100) * SPLIT_MAX_FRAC));
+  return Math.min(max, Math.max(SPLIT_MIN, Math.round(px)));
+}
 
 function personCard(p, rel, collateral){
   var doc = documented(p.id);
@@ -510,26 +554,43 @@ function treeNode(p, rel, depth, anc){
 
 function viewHome(){
   var root = P[site.rootPersonId] || people[0];
-  var anc = ancestorIds(root.id);
   var nDoc = people.filter(function(p){ return documented(p.id); }).length;
+
+  var textPane = h('div', { 'class':'pane-text' }, h('div', { 'class':'prose' }, D.introHTML));
+
+  var toggle = h('button', { 'class':'paneToggle', 'data-act':'toggletext', type:'button',
+      title: state.textHidden ? 'Show the introduction' : 'Hide the introduction, widen the tree',
+      'aria-label': state.textHidden ? 'Show the introduction' : 'Hide the introduction' },
+    state.textHidden ? '&rsaquo;' : '&lsaquo;');
+  var splitter = h('div', { 'class':'splitter', 'data-splitter':'1', role:'separator',
+      tabindex:'0', 'aria-orientation':'vertical',
+      'aria-label':'Width of the introduction column',
+      'aria-valuemin':String(SPLIT_MIN), 'aria-valuemax':'900',
+      'aria-valuenow':String(state.textHidden ? 0 : state.splitW),
+      title:'Drag to resize · double-click to hide the text · arrow keys also work' },
+    h('span', { 'class':'grip' }, '') + toggle);
+
+  var treePane = h('div', { 'class':'pane-tree' },
+    h('span', { 'class':'kind' }, 'The direct line') +
+    h('h2', null, 'From ' + esc(root.name.split(' ')[0]) + ' back to the serra') +
+    h('p', { 'class':'lede' }, 'Each person\u2019s parents are nested beneath them. <b>Solid blue</b> means we hold a record of that person\u2019s own. <b>Dashed amber</b> means their name comes to us from a record about somebody else \u2014 the name itself is firm, and it is the key we search the next record with. Bold facts are the ones a primary source states outright; faded facts are inferred. ' + nDoc + ' of ' + people.length + ' people have a document of their own.') +
+    h('div', { 'class':'legend' },
+      h('span', null, '<i class="swatch sw-doc"></i> Has records of their own') +
+      h('span', null, '<i class="swatch sw-open"></i> Named in another record \u2014 the key to the next one')) +
+    h('div', { 'class':'controls' },
+      h('button', { 'data-act':'sibs', type:'button', 'aria-pressed': String(state.siblings) },
+        (state.siblings ? '\u2713 ' : '') + 'Show brothers &amp; sisters') +
+      h('button', { 'data-act':'expand', type:'button' }, 'Expand all') +
+      h('button', { 'data-act':'collapse', type:'button' }, 'Collapse all')) +
+    h('ul', { 'class':'tree', id:'tree' }, treeNode(root, '', 0, null)));
+
   return shell('#/',
     h('header', { 'class':'masthead' },
       h('p', { 'class':'eyebrow' }, esc(site.subtitle||'')) +
-      h('h1', null, esc(site.title)) ) +
-    h('section', { 'class':'sec prose', style:'border-top:none;margin-top:26px;padding-top:0' }, D.introHTML) +
-    h('section', { 'class':'sec' },
-      h('span', { 'class':'kind' }, 'The direct line') +
-      h('h2', null, 'From ' + esc(root.name.split(' ')[0]) + ' back to the serra') +
-      h('p', { 'class':'lede' }, 'Each person’s parents are nested beneath them. <b>Solid blue</b> means we hold a record of that person’s own. <b>Dashed amber</b> means their name comes to us from a record about somebody else — the name itself is firm, and it is the key we search the next record with. Bold facts are the ones a primary source states outright; faded facts are inferred. ' + nDoc + ' of ' + people.length + ' people have a document of their own.') +
-      h('div', { 'class':'legend' },
-        h('span', null, '<i class="swatch sw-doc"></i> Has records of their own') +
-        h('span', null, '<i class="swatch sw-open"></i> Named in another record — the key to the next one')) +
-      h('div', { 'class':'controls' },
-        h('button', { 'data-act':'sibs', 'aria-pressed': String(state.siblings) },
-          (state.siblings ? '✓ ' : '') + 'Show brothers &amp; sisters') +
-        h('button', { 'data-act':'expand' }, 'Expand all') +
-        h('button', { 'data-act':'collapse' }, 'Collapse all')) +
-      h('ul', { 'class':'tree', id:'tree' }, treeNode(root, '', 0, anc))));
+      h('h1', null, esc(site.title))) +
+    h('div', { 'class':'split' + (state.textHidden ? ' text-hidden' : ''), id:'split',
+        style:'--split:' + state.splitW + 'px;margin-top:30px' },
+      textPane + splitter + treePane));
 }
 
 function viewPerson(id){
@@ -937,7 +998,9 @@ function render(){
   else if (hash === '#/register') html = viewRegister();
   else html = viewHome();
   var root = document.getElementById('app');
-  root.innerHTML = '<div class="wrap">' + html + '</div>';
+  // the home page is a two-column workspace and needs the room; reading pages stay narrow
+  var wide = (hash === '#/' || hash === '' || hash === '#');
+  root.innerHTML = '<div class="wrap' + (wide ? ' wide' : '') + '">' + html + '</div>';
   window.scrollTo(0, 0);
 }
 document.addEventListener('click', function(e){
@@ -950,6 +1013,7 @@ document.addEventListener('click', function(e){
   var act = t.getAttribute('data-act');
   if (act === 'sibs'){ state.siblings = !state.siblings; saveState(); render(); }
   else if (act === 'expand'){ state.collapsed = {}; saveState(); render(); }
+  else if (act === 'toggletext'){ state.textHidden = !state.textHidden; saveState(); render(); }
   else if (act === 'regours'){ state.regOurs = !state.regOurs; render(); }
   else if (act === 'collapse'){
     people.forEach(function(p){ if (p.fatherId || p.motherId || childrenOf(p.id).length) state.collapsed[p.id] = true; });
@@ -966,6 +1030,81 @@ document.addEventListener('input', function(e){
     if (again){ again.focus(); try { again.setSelectionRange(pos,pos); } catch(_){} }
   }
 });
+// splitter: drag, keyboard, double-click. Never re-renders mid-drag - it just sets
+// the CSS custom property, because re-rendering the tree on every mousemove is far
+// too slow and would lose scroll position.
+(function(){
+  var dragging = false, el = null, startX = 0, startW = 0;
+  function containerWidth(){ var n = document.getElementById('split'); return n ? n.getBoundingClientRect().width : 1100; }
+  function begin(clientX, target){
+    el = document.getElementById('split');
+    if (!el || state.textHidden) return;
+    dragging = true; startX = clientX; startW = state.splitW;
+    target.setAttribute('data-dragging','true');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  }
+  function move(clientX){
+    if (!dragging || !el) return;
+    var w = clampSplit(startW + (clientX - startX), containerWidth());
+    el.style.setProperty('--split', w + 'px');
+    state.splitW = w;
+    var sp = el.querySelector('.splitter');
+    if (sp) sp.setAttribute('aria-valuenow', String(w));
+  }
+  function end(){
+    if (!dragging) return;
+    dragging = false;
+    var sp = el && el.querySelector('.splitter');
+    if (sp) sp.removeAttribute('data-dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    saveState();
+  }
+  document.addEventListener('mousedown', function(e){
+    var sp = e.target.closest && e.target.closest('[data-splitter]');
+    if (!sp || (e.target.closest && e.target.closest('.paneToggle'))) return;
+    e.preventDefault(); begin(e.clientX, sp);
+  });
+  document.addEventListener('mousemove', function(e){ move(e.clientX); });
+  document.addEventListener('mouseup', end);
+  document.addEventListener('touchstart', function(e){
+    var sp = e.target.closest && e.target.closest('[data-splitter]');
+    if (!sp || (e.target.closest && e.target.closest('.paneToggle'))) return;
+    begin(e.touches[0].clientX, sp);
+  }, { passive:true });
+  document.addEventListener('touchmove', function(e){
+    if (dragging){ e.preventDefault(); move(e.touches[0].clientX); }
+  }, { passive:false });
+  document.addEventListener('touchend', end);
+  document.addEventListener('dblclick', function(e){
+    if (e.target.closest && e.target.closest('[data-splitter]')){
+      state.textHidden = !state.textHidden; saveState(); render();
+    }
+  });
+  document.addEventListener('keydown', function(e){
+    var sp = document.activeElement;
+    if (!sp || !sp.hasAttribute || !sp.hasAttribute('data-splitter')) return;
+    var node = document.getElementById('split');
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight'){
+      e.preventDefault();
+      if (state.textHidden) return;
+      state.splitW = clampSplit(state.splitW + (e.key === 'ArrowRight' ? 24 : -24), containerWidth());
+      if (node) node.style.setProperty('--split', state.splitW + 'px');
+      sp.setAttribute('aria-valuenow', String(state.splitW));
+      saveState();
+    } else if (e.key === 'Home'){
+      e.preventDefault(); state.splitW = SPLIT_MIN;
+      if (node) node.style.setProperty('--split', SPLIT_MIN + 'px'); saveState();
+    } else if (e.key === 'End'){
+      e.preventDefault(); state.splitW = clampSplit(1e4, containerWidth());
+      if (node) node.style.setProperty('--split', state.splitW + 'px'); saveState();
+    } else if (e.key === 'Enter' || e.key === ' '){
+      e.preventDefault(); state.textHidden = !state.textHidden; saveState(); render();
+    }
+  });
+})();
+
 window.addEventListener('hashchange', render);
 render();
 })();
