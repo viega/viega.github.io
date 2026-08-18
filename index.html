@@ -574,7 +574,6 @@ function treeNode(p, rel, depth, anc){
 
 function viewHome(){
   var root = P[site.rootPersonId] || people[0];
-  var nDoc = people.filter(function(p){ return documented(p.id); }).length;
 
   var textPane = h('div', { 'class':'pane-text' }, h('div', { 'class':'prose' }, D.introHTML));
 
@@ -591,7 +590,7 @@ function viewHome(){
     h('span', { 'class':'grip' }, '') + toggle);
 
   var treePane = h('div', { 'class':'pane-tree' },
-    h('span', { 'class':'kind' }, 'The direct line \u00b7 ' + nDoc + ' of ' + people.length + ' with a record of their own') +
+    h('span', { 'class':'kind' }, 'The direct line') +
     h('p', { 'class':'lede tight' }, 'Parents nest beneath each person. Bold facts come from a primary source; faded ones are inferred.') +
     h('div', { 'class':'legend' },
       h('span', null, '<i class="swatch sw-doc"></i> Has records of their own') +
