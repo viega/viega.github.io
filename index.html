@@ -230,26 +230,27 @@ img{max-width:100%;height:auto}
     align-items:start;column-gap:0}
   .split.text-hidden{grid-template-columns:0 15px minmax(0,1fr)}
   .split.text-hidden .pane-text{display:none}
-  .pane-text{position:sticky;top:14px;max-height:calc(100vh - 34px);
-    overflow-y:auto;overscroll-behavior:contain;padding-right:26px}
-  .pane-text::-webkit-scrollbar{width:9px}
-  .pane-text::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
-  .splitter{display:block;position:sticky;top:14px;height:calc(100vh - 34px);
+  /* The text pane deliberately does NOT scroll independently. Making it an
+     overflow container clipped glyph overhang on its left edge and, inside a
+     sticky element, left the bottom unreachable in Safari. It flows with the
+     page instead; the divider handle stays in reach via a sticky child. */
+  .pane-text{padding:0 30px 0 3px}
+  .splitter{display:block;position:relative;align-self:stretch;min-height:220px;
     cursor:col-resize;background:transparent;border:0;padding:0;width:15px;
     justify-self:center;touch-action:none}
   .splitter::before{content:"";position:absolute;left:7px;top:0;bottom:0;width:1px;
     background:var(--rule)}
   .splitter:hover::before,.splitter[data-dragging="true"]::before{background:var(--azulejo-soft);width:2px;left:6.5px}
-  .splitter .grip{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    width:15px;height:38px;border-radius:8px;background:var(--panel);
+  .splitControls{position:sticky;top:42vh;display:flex;flex-direction:column;
+    align-items:center;gap:9px}
+  .splitter .grip{width:15px;height:38px;border-radius:8px;background:var(--panel);
     border:1px solid var(--rule);display:flex;align-items:center;justify-content:center}
   .splitter:hover .grip{border-color:var(--azulejo-soft)}
   .splitter .grip::after{content:"";width:2px;height:16px;border-radius:2px;background:var(--muted)}
   .splitter:focus-visible{outline:2px solid var(--azulejo-soft);outline-offset:1px;border-radius:4px}
-  .paneToggle{position:absolute;top:calc(50% + 34px);left:50%;transform:translateX(-50%);
-    width:24px;height:24px;border-radius:50%;background:var(--panel);border:1px solid var(--rule);
-    color:var(--muted);font-family:var(--sans);font-size:12px;line-height:1;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;padding:0}
+  .paneToggle{width:24px;height:24px;border-radius:50%;background:var(--panel);
+    border:1px solid var(--rule);color:var(--muted);font-family:var(--sans);font-size:12px;
+    line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
   .paneToggle:hover{border-color:var(--azulejo-soft);color:var(--ink)}
 }
 @media (max-width:899px){
@@ -587,7 +588,7 @@ function viewHome(){
       'aria-valuemin':String(SPLIT_MIN), 'aria-valuemax':'900',
       'aria-valuenow':String(state.textHidden ? 0 : state.splitW),
       title:'Drag to resize · double-click to hide the text · arrow keys also work' },
-    h('span', { 'class':'grip' }, '') + toggle);
+    h('div', { 'class':'splitControls' }, h('span', { 'class':'grip' }, '') + toggle));
 
   var treePane = h('div', { 'class':'pane-tree' },
     h('span', { 'class':'kind' }, 'The direct line') +
